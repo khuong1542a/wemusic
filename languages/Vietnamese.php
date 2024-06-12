@@ -811,6 +811,7 @@ $LNG['already_liked'] = 'Bạn đã thích bài hát này.';
 $LNG['already_disliked'] = 'Bạn đã không thích bài hát này.';
 $LNG['like'] = 'Thích';
 $LNG['dislike'] = 'Bỏ thích';
+$LNG['sort_by_like'] = 'Lượt thích';
 $LNG['like_track_not_exist'] = 'Bản nhạc này không tồn tại hoặc đã bị xóa.';
 $LNG['liked_this'] = 'thích điều này';
 
@@ -859,6 +860,7 @@ $LNG['account_not_activated'] = 'Tài khoản này không được kích hoạt.
 $LNG['re_activate_already'] = 'Một email kích hoạt đã được gửi ngày hôm nay';
 $LNG['re_activate_sent'] = 'Một email kích hoạt đã được gửi';
 $LNG['view'] = 'Xem';
+$LNG['sort_by_view'] = 'Lượt xem';
 $LNG['uploading'] = 'Đang tải lên';
 $LNG['processing'] = 'Đang xử lý...';
 $LNG['tracking_code'] = 'Mã theo dõi';

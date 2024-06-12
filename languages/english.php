@@ -811,6 +811,7 @@ $LNG['already_liked'] = 'You\'ve already liked this track.';
 $LNG['already_disliked'] = 'You\'ve already disliked this track.';
 $LNG['like'] = 'Like';
 $LNG['dislike'] = 'Liked';
+$LNG['sort_by_like'] = 'By Like';
 $LNG['like_track_not_exist'] = 'This track doesn\'t exist or has been deleted.';
 $LNG['liked_this'] = 'liked this';
 
@@ -859,6 +860,7 @@ $LNG['account_not_activated'] = 'This account is not activated. <a href="%s">Cli
 $LNG['re_activate_already'] = 'An activation email has already been sent today';
 $LNG['re_activate_sent'] = 'An activation email has been sent';
 $LNG['view'] = 'View';
+$LNG['sort_by_view'] = 'By View';
 $LNG['uploading'] = 'Uploading';
 $LNG['processing'] = 'Processing...';
 $LNG['tracking_code'] = 'Tracking Code';

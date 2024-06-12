@@ -55,7 +55,7 @@ if($settings['fbapp']) {
 
 $TMPL['url'] = $CONF['url'];
 $TMPL['year'] = date('Y');
-$TMPL['info_urls'] = info_urls();
+$TMPL['info_urls'] = '';
 $TMPL['powered_by'] = 'Được cung cấp bởi <a href="'.$url.'" target="_blank">'.$name.'</a>.';
 $TMPL['language'] = getLanguage($CONF['url'], null, 1);
 $TMPL['tracking_code'] = $settings['tracking_code'];

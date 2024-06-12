@@ -479,13 +479,6 @@ ALTER TABLE `notifications`
   ADD KEY `from` (`from`,`type`);
 
 --
--- Indexes for table `payments`
---
-ALTER TABLE `payments`
-  ADD PRIMARY KEY (`id`),
-  ADD KEY `by` (`by`);
-
---
 -- Indexes for table `playlistentries`
 --
 ALTER TABLE `playlistentries`
@@ -592,12 +585,6 @@ ALTER TABLE `likes`
 --
 ALTER TABLE `notifications`
   MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=7;
-
---
--- AUTO_INCREMENT for table `payments`
---
-ALTER TABLE `payments`
-  MODIFY `id` int NOT NULL AUTO_INCREMENT, AUTO_INCREMENT=2;
 
 --
 -- AUTO_INCREMENT for table `playlistentries`

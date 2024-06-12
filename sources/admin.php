@@ -68,174 +68,12 @@ function PageMain() {
 			} elseif(isset($_GET['m']) && $_GET['m'] == 0 && isset($_GET['m'])) {
 				$TMPL['message'] = notificationBox('info', $LNG['password_not_changed']);
 			}
-		} elseif(isset($_GET['b']) && $_GET['b'] == 'pro') { // Security Admin Tab
-			$skin = new skin('admin/pro'); $page = '';
-			
-			if(!extension_loaded('openssl')) {
-				$TMPL['message'] .= notificationBox('error', $LNG['openssl_error']);
-			}
-			if(!function_exists('curl_exec')) {
-				$TMPL['message'] .= notificationBox('info', $LNG['curl_error']);
-			}
-
-			$TMPL['ppclientid'] = $settings['paypalclientid']; $TMPL['ppsecret'] = $settings['paypalsecret']; $TMPL['currentProMonth'] = $settings['promonth']; $TMPL['currentProYear'] = $settings['proyear'];
-
-			if(empty($settings['paypalapp'])) {
-				$TMPL['ppappoff'] = ' selected="selected"';
-			} else {
-				$TMPL['ppappon'] = ' selected="selected"';
-			}
-			
-			if(empty($settings['paypalsand'])) {
-				$TMPL['ppsandoff'] = ' selected="selected"';
-			} else {
-				$TMPL['ppsandon'] = ' selected="selected"';
-			}
-			
-			$TMPL['protracksize'] = round(($settings['protracksize'] / 1024) / 1024);
-			$TMPL['protracktotal'] = round(($settings['protracktotal'] / 1024) / 1024);
-			$TMPL['tracksize'] = round(($settings['tracksize'] / 1024) / 1024);
-			$TMPL['tracksizetotal'] = round(($settings['tracksizetotal'] / 1024) / 1024);
-			$TMPL['currency'] = $settings['currency'];
-			
-			if(!empty($_POST)) {
-				// Transform the user's value in the appropriate format
-				$_POST['protracksize'] = ($_POST['protracksize'] * 1024) * 1024;
-				$_POST['protracktotal'] = ($_POST['protracktotal'] * 1024) * 1024;
-				$_POST['tracksize'] = ($_POST['tracksize'] * 1024) * 1024;
-				$_POST['tracksizetotal'] = ($_POST['tracksizetotal'] * 1024) * 1024;
-
-				$updateSettings = new updateSettings();
-				$updateSettings->db = $db;
-				$updated = $updateSettings->query_array('settings', $_POST);
-
-				if($updated == 1) {
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=pro&m=s");
-				} else {
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=pro&m=i");
-				}
-			}
-			
-			if(isset($_GET['m']) && $_GET['m'] == 's') {
-				$TMPL['message'] = notificationBox('success', $LNG['settings_saved']);
-			} elseif(isset($_GET['m']) && $_GET['m'] == 'i') {
-				$TMPL['message'] = notificationBox('info', $LNG['nothing_changed']);
-			}
 		} elseif(isset($_GET['b']) && $_GET['b'] == 'stats') { // Security Admin Tab
 			$skin = new skin('admin/stats'); $page = '';
 			
 			list($TMPL['tracks_total'], $TMPL['tracks_public'], $TMPL['tracks_private'], $TMPL['comments_total'], $TMPL['users_today'], $TMPL['users_this_month'], $TMPL['users_last_30'], $TMPL['users_total'], $TMPL['total_reports'], $TMPL['pending_reports'], $TMPL['safe_reports'], $TMPL['deleted_reports'], $TMPL['total_tracks_reports'], $TMPL['pending_track_reports'], $TMPL['safe_track_reports'], $TMPL['deleted_track_reports'], $TMPL['total_comment_reports'], $TMPL['pending_comment_reports'], $TMPL['safe_comment_reports'], $TMPL['deleted_comment_reports'], $TMPL['total_likes'], $TMPL['likes_today'], $TMPL['likes_this_month'], $TMPL['likes_last_30'], $TMPL['total_plays'], $TMPL['plays_today'], $TMPL['plays_this_month'], $TMPL['plays_last_30'], $TMPL['total_downloads'], $TMPL['downloads_today'], $TMPL['downloads_this_month'], $TMPL['downloads_last_30'], $TMPL['total_playlists'], $TMPL['playlists_today'], $TMPL['playlists_this_month'], $TMPL['playlists_last_30'], $TMPL['total_payments'], $TMPL['payments_today'], $TMPL['payments_this_month'], $TMPL['payments_last_30'], $TMPL['total_earnings'], $TMPL['earnings_today'], $TMPL['earnings_this_month'], $TMPL['earnings_last_30']) = admin_stats($db, 0, array('currency' => $settings['currency']));
 			
 			$TMPL['currency'] = $settings['currency'];
-		} elseif(isset($_GET['b']) && $_GET['b'] == 'info_pages') {
-			$skin = new skin('admin/info_pages'); $page = '';
-			$updateSettings = new updateSettings();
-			$updateSettings->db = $db;
-			
-			if(isset($_GET['id'])) {			
-				$TMPL['show'] = '';
-				$TMPL['btn_name'] = $LNG['save_changes'];
-				
-				if(!empty($_POST)) {
-					$TMPL['message'] = $updateSettings->createInfoPage($_POST, 1);
-				}
-				
-				$info_page = $db->query(sprintf("SELECT * FROM `info_pages` WHERE `id` = '%s'", $db->real_escape_string($_GET['id'])));
-				
-				$row = $info_page->fetch_assoc();
-				$row['content_parsed'] = skin::parse($row['content']);
-				$TMPL['page'] = '<div><strong><a href="'.permalink($CONF['url'].'/index.php?a=info&b='.$row['url']).'" target="_blank">'.skin::parse($row['title']).'</a></strong></div><div class="message-time">'.((strlen($row['content_parsed']) > 65) ? substr(strip_tags($row['content_parsed']), 0, 65).'...' : strip_tags($row['content_parsed'])).'</div>';
-				
-				$TMPL['form'] = '&id='.$row['id'];
-				$TMPL['current_id'] = $row['id'];
-				$TMPL['current_title'] = $row['title'];
-				$TMPL['current_url'] = $row['url'];
-				$TMPL['current_content'] = $row['content'];
-				if($row['public']) {
-					$TMPL['ppon'] = ' selected="selected"';
-				} else {
-					$TMPL['ppoff'] = ' selected="selected"';
-				}	
-			} else {
-				$TMPL['show'] = ' style="display: none;"';
-				$TMPL['btn_name'] = $LNG['create_page'];
-				
-				if(!empty($_POST)) {
-					$TMPL['message'] = $updateSettings->createInfoPage($_POST, 0);
-					
-					$TMPL['current_title'] = $_POST['page_title'];
-					$TMPL['current_url'] = $_POST['page_url'];
-					$TMPL['current_content'] = $_POST['page_content'];
-					if($_POST['page_public']) {
-						$TMPL['ppon'] = ' selected="selected"';
-					} else {
-						$TMPL['ppoff'] = ' selected="selected"';
-					}
-				}
-				
-				if(isset($_GET['delete']) && $_GET['token_id'] == $_SESSION['token_id']) {
-					if($updateSettings->deleteInfoPage($_GET['delete'])) {
-						$TMPL['message'] = notificationBox('success', sprintf($LNG['page_deleted'], skin::parse($_GET['deleted'])));
-					}
-				}
-			
-				$pages = $updateSettings->getInfoPages();
-				
-				$TMPL['pages_list'] = $pages;
-			}
-		} elseif(isset($_GET['b']) && $_GET['b'] == 'newsletter') {
-			$skin = new skin('admin/newsletter'); $page = '';
-			
-			$updateSettings = new updateSettings();
-			$updateSettings->db = $db;
-			$updateSettings->time = $settings['time'];
-			
-			if(!empty($_POST) && $_POST['token_id'] == $_SESSION['token_id']) {
-				$_POST['email_title'] = strip_tags(substr($_POST['email_title'], 0, 32));
-				
-				// If title and content is being set
-				if(!empty($_POST['email_title']) && !empty($_POST['email_content'])) {
-					$db->query(sprintf("INSERT INTO `newsletters` (`title`, `content`, `time`) VALUES ('%s', '%s', CURRENT_TIMESTAMP);", $db->real_escape_string($_POST['email_title']), $db->real_escape_string($_POST['email_content'])));
-					
-					// Select the user emails
-					$userEmails = $db->query("SELECT `email` FROM `users` WHERE `suspended` = 0 AND `email_newsletter` = 1");
-					
-					while($row = $userEmails->fetch_assoc()) {
-						// Store the user emails
-						$list[] = $row['email'];
-					}
-					
-					// Send out the emails
-					sendMail($list, $settings['title'].' - '.$_POST['email_title'], $_POST['email_content'].sprintf($LNG['email_footer_unsub'], $settings['title'], permalink($CONF['url'].'/index.php?a=settings&b=notifications')), $CONF['email']);
-					
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=newsletter&m=s");
-				} else {
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=newsletter&m=i");
-				}
-			}
-			
-			if(isset($_GET['id']) && $_GET['token_id'] == $_SESSION['token_id']) {
-                $newsletter = $db->query(sprintf("SELECT * FROM `newsletters` WHERE `id` = '%s'", $db->real_escape_string($_GET['id'])));
-                $row = $newsletter->fetch_assoc();
-
-				if($updateSettings->deleteNewsletter($_GET['id'])) {
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=newsletter&deleted=".$row['title']);
-				}
-			}
-			
-			if(isset($_GET['m']) && $_GET['m'] == 's') {
-				$TMPL['message'] = notificationBox('success', $LNG['newsletter_sent']);
-			} elseif(isset($_GET['m']) && $_GET['m'] == 'i') {
-				$TMPL['message'] = notificationBox('error', $LNG['all_fields']);
-			}
-			
-			if(isset($_GET['deleted'])) {
-				$TMPL['message'] = notificationBox('success', sprintf($LNG['newsletter_deleted'], htmlspecialchars($_GET['deleted'], ENT_QUOTES, 'UTF-8')));
-			}
-		
-			$newsletters = $updateSettings->getNewsletters();
-			
-			$TMPL['newsletters'] = $newsletters;
 		} elseif(isset($_GET['b']) && $_GET['b'] == 'languages') {
 			$skin = new skin('admin/languages'); $page = '';
 
@@ -340,18 +178,6 @@ function PageMain() {
 				
 				// If the Pro Accounts are enabled
                 $promote = '';
-				if($settings['paypalapp']) {
-					// Promote the user
-					if(isset($_GET['promote']) && !$pro_status && $_GET['promote'] == 1 && $_GET['token_id'] == $_SESSION['token_id']) {
-						emulatePayment($db, $settings, $user);
-						header("Location: ".$CONF['url']."/index.php?a=admin&b=users&id=".$_GET['id'].'&promoted=1');
-					}
-					
-					// If the user is not pro, display the button
-					if(!$pro_status && !isset($_GET['promote'])) {
-						$promote = '<div class="manage-users-buttons"><div class="modal-btn list-button"><a href="'.$CONF['url'].'/index.php?a=admin&b=users&id='.$user['idu'].'&promote=1&token_id='.$_SESSION['token_id'].'" title="'.$LNG['promote_info'].'">'.$LNG['promote'].'</a></div></div>';
-					}
-				}
 				
 				$TMPL['username'] = '<div class="manage-users-image"><a href="'.$CONF['url'].'/index.php?a=profile&u='.$user['username'].'" target="_blank"><img src="'.permalink($CONF['url'].'/image.php?t=a&w=112&h=112&src='.$user['image']).'"></a></div><div class="manage-users-content"><a href="'.$CONF['url'].'/index.php?a=profile&u='.$user['username'].'" target="_blank">'.$user['username'].'</a><br>'.$user['email'].'</div>'.$promote;
 				
@@ -412,115 +238,35 @@ function PageMain() {
 			$manageTracks->url = $CONF['url'];
 			$manageTracks->title = $settings['title'];
 			$manageTracks->per_page = $settings['rperpage'];
-            $manageTracks->email = $CONF['email'];
-			
-			if(!isset($_GET['id']) && !isset($_GET['idu'])) {
-				$skin = new skin('admin/manage_users'); $page = '';
+			if(isset($_GET['c']) && $_GET['c'] = 'new'){
+				$skin = new skin('admin/track'); $page = '';
+				
+				$TMPL['form_url'] = $CONF['url'].'/requests/post_track_admin.php';
+				
+				$TMPL['categories'] = '';
+				foreach ($manageTracks->getCategories() as $category) {
+					$TMPL['categories'] .= '<option value="'.$category.'">'.$category.'</option>';
+				}
+				$TMPL['btntext'] = $LNG['save'];
+			}else if(!isset($_GET['id']) && !isset($_GET['idu'])) {
+				$skin = new skin('admin/manage_track'); $page = '';
 
 				// Save the array returned into a list
-				$TMPL['users'] = $manageTracks->getUsers(0);
-			} else {
-				$skin = new skin('admin/user'); $page = '';
-				$getUser = $manageTracks->getUser($_GET['id'] ?? null, $_GET['idu'] ?? null);
+				$TMPL['track'] = $manageTracks->getTrack(0);
+				$TMPL['create_url'] = $CONF['url']."/index.php?a=admin&b=track&c=new";
+			}else{
+				$skin = new skin('admin/track'); $page = '';
+				
+				$TMPL['form_url'] = $CONF['url'].'/requests/post_track_admin.php';
+				
+				$TMPL['categories'] = '';
+				foreach ($manageTracks->getCategories() as $category) {
+					$TMPL['categories'] .= '<option value="'.$category.'">'.$category.'</option>';
+				}
+				$getUser = $manageTracks->gettracksign($_GET['id'] ?? null, $_GET['idu'] ?? null);
 				if(!$getUser) {
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=users&m=un");
+					header("Location: ".$CONF['url']."/index.php?a=admin&b=track&m=un");
 				}
-				// Create the class instance
-				$updateUserSettings = new updateUserSettings();
-				$updateUserSettings->db = $db;
-				$updateUserSettings->id = $getUser['idu'];
-				
-				if(!empty($_POST)) {
-					$TMPL['message'] = $updateUserSettings->query_array('users', array_map("strip_tags_array", $_POST));
-				}
-				
-				$userSettings = $updateUserSettings->getSettings();
-				$TMPL['countries'] = countries(1, $userSettings['country']);
-				
-				$TMPL['username'] = $userSettings['username']; $TMPL['idu'] = $userSettings['idu']; $TMPL['currentFirstName'] = $userSettings['first_name']; $TMPL['currentLastName'] = $userSettings['last_name']; $TMPL['currentEmail'] = $userSettings['email']; $TMPL['currentCity'] = $userSettings['city']; $TMPL['currentWebsite'] = $userSettings['website']; $TMPL['currentDescription'] = $userSettings['description']; $TMPL['currentFacebook'] = $userSettings['facebook']; $TMPL['currentTwitter'] = $userSettings['twitter'];  $TMPL['currentGplus'] = $userSettings['gplus']; $TMPL['currentYouTube'] = $userSettings['youtube']; $TMPL['currentSoundCloud'] = $userSettings['soundcloud']; $TMPL['currentLastfm'] = $userSettings['lastfm']; $TMPL['currentMySpace'] = $userSettings['myspace']; $TMPL['currentVimeo'] = $userSettings['vimeo']; $TMPL['currentTumblr'] = $userSettings['tumblr']; $TMPL['join_date'] = $userSettings['date'];
-
-				$feed = new feed();
-				$feed->db = $db;
-				$feed->id = $updateUserSettings->id;
-				$feed->paypalapp = $settings['paypalapp'];
-
-				if(isset($_GET['suspend']) && $_GET['token_id'] == $_SESSION['token_id']) {
-					$manageTracks->suspendUser($feed->id, $_GET['suspend']);
-					header("Location: ".$CONF['url']."/index.php?a=admin&b=users&id=".$_GET['id']);
-				}
-				
-				$user = $manageTracks->getUser($getUser['idu']);
-				
-				// Get the Pro Status
-				$pro_status = $feed->getProStatus($user['idu']);
-				
-				// If the Pro Accounts are enabled
-                $promote = '';
-				if($settings['paypalapp']) {
-					// Promote the user
-					if(isset($_GET['promote']) && !$pro_status && $_GET['promote'] == 1 && $_GET['token_id'] == $_SESSION['token_id']) {
-						emulatePayment($db, $settings, $user);
-						header("Location: ".$CONF['url']."/index.php?a=admin&b=users&id=".$_GET['id'].'&promoted=1');
-					}
-					
-					// If the user is not pro, display the button
-					if(!$pro_status && !isset($_GET['promote'])) {
-						$promote = '<div class="manage-users-buttons"><div class="modal-btn list-button"><a href="'.$CONF['url'].'/index.php?a=admin&b=users&id='.$user['idu'].'&promote=1&token_id='.$_SESSION['token_id'].'" title="'.$LNG['promote_info'].'">'.$LNG['promote'].'</a></div></div>';
-					}
-				}
-				
-				$TMPL['username'] = '<div class="manage-users-image"><a href="'.$CONF['url'].'/index.php?a=profile&u='.$user['username'].'" target="_blank"><img src="'.permalink($CONF['url'].'/image.php?t=a&w=112&h=112&src='.$user['image']).'"></a></div><div class="manage-users-content"><a href="'.$CONF['url'].'/index.php?a=profile&u='.$user['username'].'" target="_blank">'.$user['username'].'</a><br>'.$user['email'].'</div>'.$promote;
-				
-				$TMPL['user'] = $userSettings['username'];
-				
-				$TMPL['reports'] = '';
-				if(empty($TMPL['reports'])) {
-					$TMPL['hide_r'] = ' style="display: none;"';
-				}
-		
-				$TMPL['history'] = '';
-
-				if(empty($TMPL['history'])) {
-					$TMPL['hide_p'] = ' style="display: none;"';
-				}
-				
-				// Suspend variable for the suspend url
-				$TMPL['suspend'] = ($user['suspended'] ? '0' : '1');
-
-				$TMPL['status_desc'] = ($user['suspended'] ? $LNG['restore_account'] : $LNG['suspend_account']);
-
-				$TMPL['status'] = '';
-				if(isset($_GET['promoted'])) {
-					$TMPL['status'] = notificationBox('success', $LNG['promoted']);
-				}
-				$TMPL['status'] .= ($user['suspended'] ? notificationBox('error', $LNG['account_suspended']) : '');
-				
-				if($user['suspended']) {
-					$TMPL['suspended'] = $LNG['restore'];
-				} else {
-					$TMPL['suspended'] = $LNG['suspend'];
-				}
-			}
-			// If GET delete is set, delete the user
-			if(isset($_GET['delete']) && $_GET['token_id'] == $_SESSION['token_id']) {
-                // Create the class instance
-                $updateUserSettings = new updateUserSettings();
-                $updateUserSettings->db = $db;
-                $updateUserSettings->id = $_GET['delete'];
-                $userSettings = $updateUserSettings->getSettings();
-
-                // Delete the profile images
-                deleteImages(array($userSettings['image']), 1);
-                deleteImages(array($userSettings['cover']), 0);
-
-				$manageTracks->deleteUser($_GET['delete']);
-				header("Location: ".$CONF['url']."/index.php?a=admin&b=users&m=".$_GET['deleted']);
-			}
-			
-			if(isset($_GET['m']) && $_GET['m'] == 'un') {
-				$TMPL['message'] = notificationBox('error', $LNG['user_not_exist']);
-			} elseif(isset($_GET['m'])) {
-				$TMPL['message'] = notificationBox('success', sprintf($LNG['user_has_been_deleted'], htmlspecialchars($_GET['m'], ENT_QUOTES, 'UTF-8')));
 			}
 		} elseif(isset($_GET['b']) && $_GET['b'] == 'categories') {
 			$manageCategories = new manageCategories();

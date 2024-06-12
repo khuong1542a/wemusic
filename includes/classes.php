@@ -80,18 +80,6 @@ function menuButtons($user) {
 	}
 	return $menu;
 }
-function info_urls() {
-	global $CONF, $db;
-	
-	$pages = $db->query("SELECT `url`, `title` FROM `info_pages` WHERE `public` = 1 ORDER BY `id` ASC");
-
-	$output = '';
-	while($row = $pages->fetch_assoc()) {
-		$output .= '<span><a href="'.permalink($CONF['url'].'/index.php?a=page&b='.$row['url']).'" rel="loadpage">'.skin::parse($row['title']).'</a></span>';
-	}
-	
-	return $output;
-}
 function notificationBox($type, $message, $extra = null) {
 	// Extra 1: Add the -modal class name
 	if($extra == 1) {
@@ -1501,26 +1489,24 @@ class manageTracks {
 	public $url;		// Installation URL Property
 	public $title;		// Installation WebSite Title
 	public $per_page;	// Limit per page
+	public $id;			// ID
 	
-	function getUsers($start) {
+	function getTrack($start) {
 		global $LNG;
-		// If the $start value is 0, empty the query;
-		if($start == 0) {
-			$start = '';
-		} else {
-			// Else, build up the query
-			$start = 'AND `idu` < \''.$this->db->real_escape_string($start).'\'';
-		}
-		// Query the database and get the latest 20 users
-		// If load more is true, switch the query for the live query
 
-		$query = sprintf("SELECT * FROM `users` WHERE `suspended` != 2 %s ORDER BY `idu` DESC LIMIT %s", $start, $this->db->real_escape_string($this->per_page + 1));
+		$query = sprintf("SELECT * FROM `tracks`, `users` WHERE `tracks`.`uid` = `users`.`idu` AND `tracks`.`public` = 1 ORDER BY `tracks`.`views` DESC, `tracks`.`likes` DESC LIMIT %s", ($this->per_page + 1));
 		
+		// $this->getTracks($query, 'trackPage', null);
+
 		$result = $this->db->query($query);
 		$rows = [];
 		while($row = $result->fetch_assoc()) {
 			$rows[] = $row;
 		}
+		
+		// echo '<pre>';
+		// var_dump($rows);
+		// die;
 
 		$loadmore = $outout = '';
 		if(array_key_exists($this->per_page, $rows)) {
@@ -1534,14 +1520,14 @@ class manageTracks {
 		
 		foreach($rows as $row) {
 			$output .= '
-			<div class="manage-users-container" id="user'.$row['idu'].'">
-				<div class="manage-users-image"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['username']).'" target="_blank"><img src="'.permalink($this->url.'/image.php?t=a&w=50&h=50&src='.$row['image']).'" /></a></div>
-				<div class="manage-users-content"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['username']).'" target="_blank">'.$row['username'].'</a><br />'.$row['email'].'</div>
+			<div class="manage-users-container" id="user'.$row['uid'].'">
+				<div class="manage-users-image"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['title']).'" target="_blank"><img src="'.permalink($this->url.'/image.php?t=a&w=50&h=50&src='.$row['image']).'" /></a></div>
+				<div class="manage-users-content"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['title']).'" target="_blank">'.$row['title'].'</a><br />'.$row['username'].'</div>
 				<div class="manage-users-buttons">
-					<div class="modal-btn list-button"><a href="'.$this->url.'/index.php?a=admin&b=users&id='.$row['idu'].'" rel="loadpage">'.$LNG['edit'].'</a></div>
+					<div class="modal-btn list-button"><a href="'.$this->url.'/index.php?a=admin&b=track&id='.$row['uid'].'" rel="loadpage">'.$LNG['edit'].'</a></div>
 				</div>
 			</div>';
-			$last = $row['idu'];
+			$last = $row['uid'];
 		}
 		if($loadmore) {
 			$output .= '<div class="admin-load-more"><div id="more_users">
@@ -1553,12 +1539,26 @@ class manageTracks {
 		return $output;
 	}
 	
-	function getUser($id, $profile = null) {
-		if($profile) {
-			$query = sprintf("SELECT `idu`, `username`, `email`, `first_name`, `last_name`, `image`, `country`, `city`, `website`, `description`, `facebook`, `twitter`, `gplus`, `youtube`, `vimeo`, `tumblr`, `soundcloud`, `myspace`, `lastfm`, `suspended`, `ip` FROM `users` WHERE `username` = '%s' AND `suspended` != 2", $this->db->real_escape_string($profile));
-		} else {
-			$query = sprintf("SELECT `idu`, `username`, `email`, `first_name`, `last_name`, `image`, `country`, `city`, `website`, `description`, `facebook`, `twitter`, `gplus`, `youtube`, `vimeo`, `tumblr`, `soundcloud`, `myspace`, `lastfm`, `suspended`, `ip` FROM `users` WHERE `idu` = '%s' AND `suspended` != 2", $this->db->real_escape_string($id));
+	function getCategories() {
+		$query = $this->db->query("SELECT `name` FROM `categories`");
+
+		$rows = $categories = [];
+		while($row = $query->fetch_assoc()) {
+			$rows[] = $row;
 		}
+		
+		// Flat the array
+		foreach($rows as $category) {
+			$categories[] = $category['name'];
+		}
+		
+		return $categories;
+	}
+
+	function gettracksign($id, $profile = null) {
+		$this->id = $id;
+		$query = sprintf("SELECT * FROM `tracks` WHERE uid = $id", $this->db->real_escape_string($profile));
+
 		$result = $this->db->query($query);
 
 		// If the user exists
@@ -1569,83 +1569,6 @@ class manageTracks {
 			return $row;
 		} else {
 			return false;
-		}
-	}
-	
-	function suspendUser($id, $type) {
-		// Type 0: Restore
-		// Type 1: Suspend
-		$user = $this->getUser($id);
-		
-		if($type && $user['suspended'] == 0) {
-			$stmt = $this->db->prepare(sprintf("UPDATE `users` SET `suspended` = 1, `private` = 1 WHERE `idu` = '%s'", $this->db->real_escape_string($id)));
-		} else {
-			$stmt = $this->db->prepare(sprintf("UPDATE `users` SET `suspended` = 0, `private` = 1 WHERE `idu` = '%s'", $this->db->real_escape_string($id)));
-		}
-		$stmt->execute();
-		
-		$affected = $stmt->affected_rows;
-		
-		$stmt->close();
-		
-		if($affected) {
-			if($type) {
-				global $LNG;
-				// Send suspended account email
-				sendMail($user['email'], sprintf($LNG['ttl_suspended_account_mail']), sprintf($LNG['suspended_account_mail'], realName($user['username'], $user['first_name'], $user['last_name']), $this->url, $this->title), $this->email);
-			}
-		}
-	}
-	
-	function deleteUser($id) {
-		// Prepare the statement to delete the user from the database
-		$stmt = $this->db->prepare("DELETE FROM `users` WHERE `idu` = '{$this->db->real_escape_string($id)}'");
-
-		// Execute the statement
-		$stmt->execute();
-		
-		// Save the affected rows
-		$affected = $stmt->affected_rows;
-		
-		// Close the statement
-		$stmt->close();
-		
-		// If the user was returned
-		if($affected) {
-			// Get the current pages created by the user
-			$query = $this->db->query(sprintf("SELECT `id`,`name`,`art`,`as3_track` FROM `tracks` WHERE `uid` = '%s' ORDER BY `id` ASC", $this->db->real_escape_string($id)));
-			
-			$tracks = $arts = [];
-
-			while($rows = $query->fetch_assoc()) {
-				$arts[] = $rows['art'];
-				$tracks[$rows['name']] = $rows['as3_track'];
-			}
-
-			$arts = implode(',', $arts);
-			
-			// Delete the art covers and tracks from the server
-			deleteMedia($arts, $tracks, 1);
-			
-			$this->db->query(sprintf("UPDATE `tracks` SET `likes` = `likes`-1, `time` = `time` WHERE `id` IN (SELECT `track` FROM `likes` WHERE `by` = '%s' ORDER BY `track` ASC)", $this->db->real_escape_string($id)));
-			$this->db->query("DELETE FROM `playlistentries` WHERE `track` IN (SELECT `id` FROM `tracks` WHERE `uid` = '{$this->db->real_escape_string($id)}')");
-			$this->db->query("DELETE FROM `playlistentries` WHERE `playlist` IN (SELECT `id` FROM `playlists` WHERE `by` = '{$this->db->real_escape_string($id)}')");
-			$this->db->query("DELETE FROM `tracks` WHERE `uid` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `comments` WHERE `uid` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `likes` WHERE `by` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `views` WHERE `by` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `relations` WHERE `subscriber` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `relations` WHERE `leader` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `chat` WHERE `from` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `chat` WHERE `to` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `blocked` WHERE `uid` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `blocked` WHERE `by` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `notifications` WHERE `to` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `notifications` WHERE `from` = '{$this->db->real_escape_string($id)}'");
-			$this->db->query("DELETE FROM `playlists` WHERE `by` = '{$this->db->real_escape_string($id)}'");
-			return 1;
-		} else {
-			return 0;
 		}
 	}
 
@@ -2837,7 +2760,7 @@ class feed {
 		$values['record'] = htmlspecialchars(trim(nl2clean($values['record'], ENT_QUOTES, 'UTF-8')));
 		
 		// Validate License
-		if($values['license']) {
+		if(isset($values['license']) && $values['license']) {
 			if($values['license-nc'] != 0) {
 				$values['license-nc'] = 1;
 			}
@@ -3134,7 +3057,7 @@ class feed {
 				$column_list = implode(',', $columns);
 				
 				if($type) {
-					$this->db->query(sprintf("INSERT INTO `tracks` (`uid`, `title`, `description`, `name`, `tag`, `art`, `buy`, `record`, `release`, `license`, `size`, `as3_track`, `download`, `public`, `time`) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP)", $this->db->real_escape_string($this->id), $columns['title'], $columns['description'], $columns['name'], $columns['tag'], $columns['art'], $columns['buy'], $columns['record'], ($columns['release'] ? "'".$columns['release']."'" : 'NULL'), $columns['license'], $columns['size'], $columns['as3_track'], $columns['download'], $columns['public']));
+					$this->db->query(sprintf("INSERT INTO `tracks` (`uid`, `title`, `description`, `name`, `tag`, `art`, `buy`, `record`, `release`, `license`, `size`, `as3_track`, `download`, `public`, `time`) VALUES ('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', %s, '%s', '%s', '%s', '%s', '%s', CURRENT_TIMESTAMP)", $this->db->real_escape_string($this->id), $columns['title'], $columns['description'], $columns['name'], $columns['tag'], $columns['art'], $columns['buy'], $columns['record'], ($columns['release'] ? "'".$columns['release']."'" : 'NULL'), $columns['license'] ?? '', $columns['size'], $columns['as3_track'], $columns['download'], $columns['public']));
 					$x++;
 				} else {
 					$stmt = $this->db->prepare(sprintf("UPDATE `tracks` SET `time` = `time`, %s WHERE `uid` = '%s' AND `id` = '%s'", $column_list, $this->id, $this->db->real_escape_string($_GET['id'])));
@@ -3698,66 +3621,12 @@ class feed {
 		}
 		return $rows;
 	}
-
-	function proAccountHistory($id = null, $title = null, $type = null) {
-		// Title: Decide if the title is included or not
-		// Type 0: Return all transactions
-		// Type 1: Return inactive transactions
-		global $LNG;
-		if($type) {
-			$x = ' AND `valid` < \''.date('Y-m-d H:i:s').'\'';
-		} else {
-			$x = '';
-		}
-		$query = $this->db->query(sprintf("SELECT * FROM `payments` WHERE `by` = '%s'%s ORDER BY `id` DESC", ($id) ? $id : $this->db->real_escape_string($this->id), $x));
-
-		$rows = [];
-		while($row = $query->fetch_assoc()) {
-			$rows[] = $row;
-		}
-
-		$result = '';
-		if(!empty($rows)) {
-			$result = '<div class="page-content">';
-			if($title) {
-				$result .= '<div class="plan-history-title">'.$LNG['transactions_history'].'</div>
-							<div class="divider"></div>
-							<div class="plan-history-container">
-								<div class="plan-option">'.$LNG['from'].'</div>
-								<div class="plan-option">'.$LNG['to'].'</div>
-								<div class="plan-option">'.$LNG['type'].'</div>
-								<div class="plan-option">'.$LNG['status'].'</div>
-							</div>';
-			}
-			
-			foreach($rows as $row) {
-				$fromArr = explode('-', $row['time']);
-				$date = $fromArr[0].'-'.$fromArr[1].'-'.substr($fromArr[2], 0, 2);
-				
-				$toArr = explode('-', $row['valid']);
-				$valid = $toArr[0].'-'.$toArr[1].'-'.substr($toArr[2], 0, 2);
-				
-				$status = paymentStatus($row['status']);
-				
-				$result .= '<div class="feature-container">
-								<div class="plan-history">'.$date.'</div>
-								<div class="plan-history">'.$valid.'</div>
-								<div class="plan-history">'.$row['amount'].' '.$row['currency'].'</div>
-								<div class="plan-history">'.$status.'</div>
-							</div>';
-			}
-			$result .= '</div>';
-		}
-		
-		return $result;
-	}
 	
 	function getProStatus($id = null, $type = null) {
 		// Type 0: Get the Pro Status of a user
 		// Type 1: Decide whether the pro accounts are enabled from the Admin Panel, and if so, check the status
 		// Type 2: Returns all the details of last transaction
-		$query = $this->db->query(sprintf("SELECT * FROM `payments` WHERE `by` = '%s' ORDER BY `id` DESC LIMIT 0, 1", ($id) ? $id : $this->db->real_escape_string($this->id)));
-		$result = $query->fetch_assoc();
+		$result = [];
 		
 		if($type == 1) {
 			if($this->paypalapp) {
@@ -3773,7 +3642,7 @@ class feed {
 		} elseif($type == 2) {
 			return $result;
 		} else {
-			if(isset($result) && $result['status'] == 1 && strtotime($result['valid']) >= time()) {
+			if(!empty($result) && $result['status'] == 1 && strtotime($result['valid']) >= time()) {
 				return 1;
 			} else {
 				return 0;
@@ -5855,7 +5724,7 @@ function pageHeader($title) {
 	if(isset($_GET['type']) && $_GET['type'] == 'like') $selectedLike = 'selected';
 	if(isset($_GET['type']) && $_GET['type'] == 'views') $selectedViews = 'selected';
 	$img = 'themes\sound\images\icons\up.png';
-	$select = '<span style="display:flex; align-items:center; padding-right:5px;"><span><select name="selectUpDown" id="selectUpDown" class="form-control"><option value="views" '.($selectedViews ?? '').'>'.$LNG['view'].'</option><option value="like" '.($selectedLike ?? '').'>'.$LNG['like'].'</option></select></span><span style="cursor:pointer;" onclick="upViews()"><img width="20px" src="'.$img.'"></span> <span style="cursor:pointer;" onclick="downViews()"><img style="transform: rotate(180deg);" width="20px" src="'.$img.'"></span></span></span>';
+	$select = '<span style="display:flex; align-items:center; padding-right:5px;"><span><select name="selectUpDown" id="selectUpDown" class="form-control"><option value="views" '.($selectedViews ?? '').'>'.$LNG['sort_by_view'].'</option><option value="like" '.($selectedLike ?? '').'>'.$LNG['sort_by_like'].'</option></select></span><span style="cursor:pointer;" onclick="upViews()"><img width="20px" src="'.$img.'"></span> <span style="cursor:pointer;" onclick="downViews()"><img style="transform: rotate(180deg);" width="20px" src="'.$img.'"></span></span></span>';
 	return '<div class="page-header page-header-extra" style="display: flex; justify-content: space-between;"><div>'.htmlspecialchars($title).'</div><div style="display:flex;align-items:center;">'.$select.'</div></div>';
 }
 function generateTimezoneForm($current) {
@@ -6158,11 +6027,10 @@ function deleteImages($image, $type) {
 	}
 }
 function proStatus($db, $settings, $id = null) {
-	$query = $db->query(sprintf("SELECT * FROM `payments` WHERE `by` = '%s' ORDER BY `id` DESC LIMIT 0, 1", ($id) ? $id : $this->db->real_escape_string($this->id)));
-	$result = $query->fetch_assoc();
+	$result = [];
 
 	if($settings['paypalapp']) {
-		if(isset($result['status']) && $result['status'] == 1 && strtotime($result['valid']) >= time()) {
+		if(!empty($result['status']) && $result['status'] == 1 && strtotime($result['valid']) >= time()) {
 			return 0;
 		} else {
 			return 1;
@@ -6171,33 +6039,6 @@ function proStatus($db, $settings, $id = null) {
 		// Return false if pro accounts are not enabled
 		return 0;
 	}
-}
-function emulatePayment($db, $settings, $user) {
-	$info = 'promoted';
-	$date = date("Y-m-d H:m:s", strtotime("+1 year"));
-	$db->query(sprintf("INSERT INTO `payments`
-	(`by`, `payer_id`, `payer_first_name`, `payer_last_name`, `payer_email`, `payer_country`, `txn_id`, `amount`, `currency`, `type`, `status`, `valid`, `time`) VALUES 
-	('%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s', '%s','%s', '%s', '%s', '%s')",
-	$db->real_escape_string($user['idu']), $info, $info, $info, $info, $info, $info, 0, $db->real_escape_string($settings['currency']), 1, 1, $date, date("Y-m-d H:m:s")));
-}
-function paymentStatus($status) {
-	global $LNG;
-	if($status == 1) {
-		$status = $LNG['completed'];
-	} elseif($status == 2) {
-		$status = $LNG['reversed'];
-	} elseif($status == 3) {
-		$status = $LNG['refunded'];
-	} elseif($status == 4) {
-		$status = $LNG['pending'];
-	} elseif($status == 5) {
-		$status = $LNG['failed'];
-	} elseif($status == 6) {
-		$status = $LNG['denied'];
-	} else {
-		$status = $LNG['suspended'];
-	}
-	return $status;
 }
 function open_graph() {
 	return false;

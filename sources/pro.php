@@ -219,7 +219,7 @@ function PageMain() {
 		$TMPL['go_pro_action'] = 'connect_modal()';
 	}
 	
-	$TMPL['history'] = $feed->proAccountHistory(null, 1, 1);
+	$TMPL['history'] = '';
 	
 	$TMPL['protracksize'] = fsize($settings['protracksize']);
 	$TMPL['protracktotal'] = fsize($settings['protracktotal']);

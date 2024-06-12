@@ -2,17 +2,14 @@
 <div class="page-inner">
 	<div class="page-input-container">
 		<div class="page-input-content page-input-left">
-			<form action="{$url}/index.php" method="GET">
-				<input type="hidden" name="a" value="admin">
-				<input type="hidden" name="b" value="users">
-				<input type="text" name="idu" value="" placeholder="{$lng->username_to_edit}"> &nbsp; <input type="submit" value="{$lng->edit}">
-				<div class="page-input-sub">{$lng->username_to_edit_sub}</div>
-			</form>
+			<div class="modal-btn list-button" style="float: left;">
+				<a href="{$create_url}" class="">Thêm mới</a>
+			</div>
 		</div>
 	</div>
 </div>
 <div class="divider"></div>
 <div class="list-content">
-	{$users}
+	{$track}
 	<div id="users"></div>
 </div>
