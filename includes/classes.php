@@ -1490,23 +1490,46 @@ class manageTracks {
 	public $title;		// Installation WebSite Title
 	public $per_page;	// Limit per page
 	public $id;			// ID
+	public $user_id;
 	
+	function getUserAdmin($start) {
+		global $LNG;
+		// If the $start value is 0, empty the query;
+		if($start == 0) {
+			$start = '';
+		} else {
+			// Else, build up the query
+			$start = 'AND `idu` < \''.$this->db->real_escape_string($start).'\'';
+		}
+		// Query the database and get the latest 20 users
+		// If load more is true, switch the query for the live query
+		$username = $_SESSION['adminUsername'];
+
+		$query = sprintf("SELECT * FROM `admin` WHERE `admin`.`username` = '$username' ORDER BY `id` DESC LIMIT %s", $this->db->real_escape_string($this->per_page + 1));
+		
+		$result = $this->db->query($query);
+
+		$rows = [];
+		while($row = $result->fetch_assoc()) {
+			$rows[] = $row;
+		}
+		// Return the array set
+		return $rows;
+	}
+
 	function getTrack($start) {
 		global $LNG;
 
-		$query = sprintf("SELECT * FROM `tracks`, `users` WHERE `tracks`.`uid` = `users`.`idu` AND `tracks`.`public` = 1 ORDER BY `tracks`.`views` DESC, `tracks`.`likes` DESC LIMIT %s", ($this->per_page + 1));
+		$query = sprintf("SELECT *,`tracks`.`id` FROM `tracks`, `users` WHERE `tracks`.`uid` = `users`.`idu` ORDER BY `tracks`.`views` DESC, `tracks`.`likes` DESC LIMIT %s", ($this->per_page + 1));
 		
 		// $this->getTracks($query, 'trackPage', null);
 
 		$result = $this->db->query($query);
 		$rows = [];
+		
 		while($row = $result->fetch_assoc()) {
 			$rows[] = $row;
 		}
-		
-		// echo '<pre>';
-		// var_dump($rows);
-		// die;
 
 		$loadmore = $outout = '';
 		if(array_key_exists($this->per_page, $rows)) {
@@ -1520,14 +1543,15 @@ class manageTracks {
 		
 		foreach($rows as $row) {
 			$output .= '
-			<div class="manage-users-container" id="user'.$row['uid'].'">
-				<div class="manage-users-image"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['title']).'" target="_blank"><img src="'.permalink($this->url.'/image.php?t=a&w=50&h=50&src='.$row['image']).'" /></a></div>
+			<div class="manage-users-container" id="user'.$row['id'].'">
+				<div class="manage-users-image"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['title']).'" target="_blank"><img src="'.permalink($this->url.'/image.php?t=a&w=50&h=50&src='.($row['image'] ?? 'default.png')).'" /></a></div>
 				<div class="manage-users-content"><a href="'.permalink($this->url.'/index.php?a=profile&u='.$row['title']).'" target="_blank">'.$row['title'].'</a><br />'.$row['username'].'</div>
 				<div class="manage-users-buttons">
-					<div class="modal-btn list-button"><a href="'.$this->url.'/index.php?a=admin&b=track&id='.$row['uid'].'" rel="loadpage">'.$LNG['edit'].'</a></div>
+				<div class="modal-btn list-button" style="margin-left:10px !important;"><a href="'.$this->url.'/index.php?a=admin&b=track&delete='.$row['id'].'" rel="loadpage">'.$LNG['delete'].'</a></div>
+					<div class="modal-btn list-button"><a href="'.$this->url.'/index.php?a=admin&b=track&id='.$row['id'].'" rel="loadpage">'.$LNG['edit'].'</a></div>
 				</div>
 			</div>';
-			$last = $row['uid'];
+			$last = $row['id'];
 		}
 		if($loadmore) {
 			$output .= '<div class="admin-load-more"><div id="more_users">
@@ -1557,7 +1581,7 @@ class manageTracks {
 
 	function gettracksign($id, $profile = null) {
 		$this->id = $id;
-		$query = sprintf("SELECT * FROM `tracks` WHERE uid = $id", $this->db->real_escape_string($profile));
+		$query = sprintf("SELECT * FROM `tracks` WHERE id = $id", $this->db->real_escape_string($profile));
 
 		$result = $this->db->query($query);
 
@@ -1570,6 +1594,546 @@ class manageTracks {
 		} else {
 			return false;
 		}
+	}
+	
+	function managePlaylist($id, $type, $data = null, $public = 1) {
+		global $LNG;
+		// Type 0: Return the current playlist info
+		// Type 1: Update the current playlist
+		// Type 2: Add a new playlist
+		
+		if($type == 2) {
+			$data = trim($data);
+			
+			// Prepare the statement
+			if(strlen($data) == 0) {
+				return;
+			}
+			
+			// Prepare the insertion
+			$stmt = $this->db->prepare(sprintf("INSERT INTO `playlists` (`by`, `name`, `description`, `public`, `time`) VALUES ('%s', '%s', '', '%s', CURRENT_TIMESTAMP)", $this->db->real_escape_string($this->id), substr(htmlspecialchars(trim(nl2clean($this->db->real_escape_string($data)))), 0, 128), $public));
+
+			// Execute the statement
+			$stmt->execute();
+			
+			// Save the affected rows
+			$affected = $stmt->affected_rows;
+
+			// Close the statement
+			$stmt->close();
+			if($affected) {
+				// Return the latest added playlist entry
+				return $this->playlistEntry($id, 0, 2);
+			}
+		} elseif($type == 1) {
+			// Strip the white spaces at the beginning/end of the name
+			$data['name'] = trim($data['name']);
+			
+			// Prepare the statement
+			if(strlen($data['name']) == 0) {
+				return notificationBox('error', sprintf($LNG['playlist_name_empty']));
+			}
+			if(strlen($data['description']) > 160) {
+				return notificationBox('error', sprintf($LNG['playlist_description'], 160));
+			}
+			$stmt = $this->db->prepare("UPDATE `playlists` SET `description` = '{$this->db->real_escape_string(htmlspecialchars(trim(nl2clean($data['description']))))}', `name` = '{$this->db->real_escape_string(htmlspecialchars($data['name']))}' WHERE `id` = '{$this->db->real_escape_string($id)}' AND `by` = '{$this->id}'");		
+
+			// Execute the statement
+			$stmt->execute();
+			
+			// Save the affected rows
+			$affected = $stmt->affected_rows;
+			
+			// Close the statement
+			$stmt->close();
+
+			// If there was anything affected return 1
+			if($affected) {
+				return notificationBox('success', $LNG['changes_saved']);
+			} else {
+				return notificationBox('info', $LNG['nothing_changed']);
+			}
+		} else {
+			$query = $this->db->query(sprintf("SELECT `name`,`description` FROM `playlists` WHERE `id` = '%s' AND `by` = '%s'", $this->db->real_escape_string($_GET['id']), $this->id));
+			$result = $query->fetch_array();
+			return $result;
+		}
+	}
+	
+	function playlistEntry($track, $playlist, $type = null) {
+		// Type 0: Return whether the track exists in playlist or not
+		// Type 1: Return the playlist entries
+		// Type 2: Returns the latest added playlist
+		// Type 3: Add/Remove track from playlist
+		if($type) {
+			if($type == 1) {
+				$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `by` = '%s' ORDER BY `id` DESC", $this->id));
+			} elseif($type == 2) {
+				$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `by` = '%s' ORDER BY `id` DESC LIMIT 0, 1", $this->id));
+			} elseif($type == 3) {
+				// Verify if track exists
+				$query = $this->db->query(sprintf("SELECT * FROM `tracks`, `users` WHERE `id` = '%s' AND `tracks`.`uid` = `users`.`idu`", $this->db->real_escape_string($track)));
+				if($query->num_rows > 0) {
+					$result = $query->fetch_assoc();
+					
+					// Verify relationship
+					// Check privacy
+					switch($result['private']) {
+						case 0:
+							break;
+						case 1:
+							// Check if the username is not the same with the track owner
+							if($this->id !== $result['idu']) {
+								return false;
+							}
+						case 2:
+							$relationship = $this->verifyRelationship($this->id, $result['idu'], 0);
+							
+							// Check relationship
+							if(!$relationship) {
+								return false;
+							}
+							break;
+					}
+					
+					// Verify playlist ownership
+					$checkPlaylist = $this->db->query(sprintf("SELECT * FROM `playlists` WHERE `playlists`.`id` = '%s' AND `playlists`.`by` = '%s'", $this->db->real_escape_string($playlist), $this->db->real_escape_string($this->id)));
+					
+					if($checkPlaylist->num_rows > 0) {
+						
+						// Check if the track exists in playlist
+						$checkTrack = $this->db->query(sprintf("SELECT * FROM `playlists`, `playlistentries` WHERE `playlistentries`.`track` = '%s' AND `playlistentries`.`playlist` = '%s' AND `playlistentries`.`playlist` = `playlists`.`id`", $this->db->real_escape_string($track), $this->db->real_escape_string($playlist)));
+	
+						// If the track exist, delete it						
+						if($checkTrack->num_rows > 0) {
+							$this->db->query(sprintf("DELETE FROM `playlistentries` WHERE `track` = '%s' AND `playlist` = '%s'", $this->db->real_escape_string($track), $this->db->real_escape_string($playlist)));
+						}
+						// Insert the track into playlist
+						else {
+							$this->db->query(sprintf("INSERT INTO `playlistentries` (`playlist`, `track`) VALUES ('%s', '%s')", $this->db->real_escape_string($playlist), $this->db->real_escape_string($track)));
+						}
+						
+						// Return the playlist entry
+						$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `playlists`.`by` = '%s' AND `playlists`.`id` = '%s'", $this->id, $this->db->real_escape_string($playlist)));
+					} else {
+						return;
+					}
+				}
+			}
+
+			$output = '';
+			$rows = [];
+
+			// Store the array results
+			while($row = $query->fetch_assoc()) {
+				$rows[] = $row;
+			}
+			
+			foreach($rows as $row) {
+				$output .= '<div class="playlist-entry'.(($this->playlistEntry($track, $row['id'])) ? ' playlist-added' : '').'" id="playlist-entry'.$row['id'].'" onclick="addInPlaylist('.saniscape($track).','.$row['id'].')">'.$row['name'].'</div>';
+			}
+			
+			return $output;
+		} else {
+			// Select the playlists
+			$query = $this->db->query(sprintf("SELECT * FROM `playlistentries`,`playlists` WHERE `playlists`.`by` = '%s' AND `playlists`.`id` = '%s' AND `playlistentries`.`playlist` = '%s' AND `playlistentries`.`track` = '%s' AND `playlistentries`.`playlist` = `playlists`.`id`", $this->id, $playlist, $this->db->real_escape_string($playlist), $this->db->real_escape_string($track)));
+			
+			// Store the array results
+			if($query->num_rows > 0) {
+				return $query->num_rows;
+			}
+		}
+	}
+	function validateTrack($values, $type, $num) {
+		global $settings;
+		// Type 0: For Edit Page
+		// Type 1: For Upload Page
+		
+		// Validate Release date
+		if(!empty($values['day']) && !empty($values['month']) && !empty($values['year'])) {
+			$values['release'] = date("Y-m-d", mktime(0, 0, 0, $values['month'], $values['day'], $values['year']));
+		} else {
+			$values['release'] = NULL;
+		}
+		
+		$values['record'] = htmlspecialchars(trim(nl2clean($values['record'], ENT_QUOTES, 'UTF-8')));
+		
+		// Validate License
+		if(isset($values['license']) && $values['license']) {
+			if($values['license-nc'] != 0) {
+				$values['license-nc'] = 1;
+			}
+			
+			// License Types
+			$licenseTypes = array(0, 1, 2);
+			
+			if(!in_array($values['license-nd-sa'], $licenseTypes)) {
+				$values['license-nd-sa'] = 0;
+			}
+			
+			$values['license'] = '1'.$values['license-nc'].$values['license-nd-sa'];
+		} else {
+			$value['license'] = 0;
+		}
+		
+		// Unset unwated fields
+		unset($values['day']);
+		unset($values['month']);
+		unset($values['year']);
+		unset($values['license-nc']);
+		unset($values['license-nd-sa']);
+		
+		if($type) {
+			$allowedColumns = array('title', 'description', 'name', 'art', 'tag', 'buy', 'record', 'release', 'license', 'size', 'download', 'public');
+			$values['title'] = $values['title'][$num];
+		} else {
+			$allowedColumns = array('title', 'description', 'art', 'tag', 'buy', 'record', 'release', 'license', 'download', 'public');
+			$values['title'] = $values['title'][0];
+		}
+		
+		// Strip unwated columns
+		foreach($values as $key => $value) {
+			if(!in_array($key, $allowedColumns)) {
+				unset($values[$key]);
+			}
+		}
+		
+		// Validate Description
+		$values['description'] = htmlspecialchars(trim(nl2clean($values['description'])));
+		
+		$desclimit = 5000;
+		if(strlen($values['description']) > $desclimit) {
+			$error[] = array(6, $desclimit);
+		}
+		
+		// Validate URL
+		if((!filter_var($values['buy'], FILTER_VALIDATE_URL) && !empty($values['buy'])) || (substr($values['buy'], 0, 7) != 'http://' && substr($values['buy'], 0, 8) != 'https://' && !empty($values['buy']))) {
+			$error[] = array(7);
+		}
+
+		// Validate Tags
+        $values['tag'] = isset($_POST['category']) ? $_POST['category'].','.$values['tag'] : $values['tag'];
+		$tags = array_filter(explode(',', $values['tag']));
+
+		foreach($tags as $key => $tag) {
+			$tag = mb_strtolower($tag);
+			// Array { Replace any unwated characters, Replace consecutive "-" characters }
+			$tag = preg_replace(array('/[^[:alnum:]-]/u', '/--+/'), array('', '-'), $tag);
+			// Remove tags that has only "-" characters
+			if($tag == '-') {
+				unset($tags[$key]);
+			} else {
+				$tags[$key] = $tag;
+			}
+		}
+		
+		// Remove empty and duplicated tags
+		$tags = array_filter(array_unique($tags));
+		$taglimit = 20;
+		$tagmax = 10;
+		$tagmin = 1;
+		if(count($tags) > $tagmax) {
+			$error[] = array(8, $tagmax);
+		} elseif(count($tags) < $tagmin) {
+			$error[] = array(9, $tagmin);
+		}
+		
+		// Check for tags length
+		foreach($tags as $tag) {
+			if(strlen($tag) >= $taglimit) {
+				$error[] = array(12, $taglimit);
+			}
+		}
+		
+		$values['tag'] = implode(',', $tags).',';
+		
+		// Validate Title
+		$titlelimit = 100;
+		if(empty($values['title'])) {
+			$error[] = array(10);
+		} elseif(strlen($values['title']) > $titlelimit) {
+			$error[] = array(11, $titlelimit);
+		} else {
+			$values['title'] = htmlspecialchars(trim(nl2clean($values['title'])));
+		}
+		
+		// Validate Download
+		if($values['download'] != 0) {
+			$values['download'] = 1;
+		}
+		
+		// Validate Privacy
+		if($values['public'] != 0) {
+			$values['public'] = 1;
+		}
+		
+		// Validate the files to be uploaded
+		if(empty($error)) {
+			$tpath = __DIR__ .'/../uploads/tracks/';
+			$mpath = __DIR__ .'/../uploads/media/';
+			
+			if($type) {
+				if(isset($_FILES['track']['name'])) {
+					// Get the total uploaded size
+					$query = $this->db->query(sprintf("SELECT (SELECT SUM(`size`) FROM `tracks` WHERE `uid` = '%s') as upload_size", $this->db->real_escape_string($this->id)));
+					$result = $query->fetch_assoc();
+					
+					$ext = strtolower(pathinfo($_FILES['track']['name'][$num], PATHINFO_EXTENSION));
+					$size = $_FILES['track']['size'][$num];
+					$fullname = $_FILES['track']['name'][$num];
+					$allowedExt = explode(',', $this->track_format);
+					$maxsize = $this->track_size;
+					
+					// Validate the total upload size allowed
+					if(($result['upload_size'] + $size) > $this->track_size_total) {
+						$error[] = array(0, saniscape($values['title']));
+					}
+					
+					// Get file type validation
+					$track = validateFile($_FILES['track']['tmp_name'][$num], $_FILES['track']['name'][$num], $allowedExt, 1);
+					
+					if($track['valid'] && $size < $maxsize && $size > 0) {
+						$t_tmp_name = $_FILES['track']['tmp_name'][$num];
+						$name = pathinfo($_FILES['track']['name'][$num], PATHINFO_FILENAME);
+						$size = $_FILES['track']['size'][$num];
+						$tName = mt_rand().'_'.mt_rand().'_'.mt_rand().'.'.$this->db->real_escape_string($ext);
+						
+						// Send the track name in array format to the function
+						$values['name'] = $tName;
+						$values['size'] = $size;
+						
+						$t_upload = true;
+					} elseif($_FILES['track']['name'][$num] == '' && isset($_GET['b']) && $_GET['b'] !== 'track') {
+						// If the file size is higher than allowed or 0
+						$error[] = array(1);
+					}
+					if(!empty($ext) && ($size > $maxsize || $size == 0)) {
+						// If the file size is higher than allowed or 0
+						$error[] = array(2, saniscape($values['title']), fsize($maxsize));
+					}
+					if(!empty($ext) && !$track['valid']) {
+						// If the file format is not allowed
+						$error[] = array(3, saniscape($values['title']), implode(', ', $allowedExt));
+					}
+				}
+			}
+			
+			if(empty($GLOBALS['multiart'])) {
+				if(isset($_FILES['art']['name'])) {
+					foreach($_FILES['art']['error'] as $key => $err) {
+						$ext = strtolower(pathinfo($_FILES['art']['name'][$key], PATHINFO_EXTENSION));
+						$size = $_FILES['art']['size'][$key];
+						$allowedExt = explode(',', $this->art_format);
+						$maxsize = $this->art_size;
+						
+						// Get file type validation
+						$image = validateFile($_FILES['art']['tmp_name'][$key], $_FILES['art']['name'][$key], $allowedExt, 0);
+						
+						if(is_array($image) && $image['valid'] && $size < $maxsize && $size > 0 && !empty($image['width']) && !empty($image['height'])) {
+							$m_tmp_name = $_FILES['art']['tmp_name'][$key];
+							$name = pathinfo($_FILES['art']['name'][$key], PATHINFO_FILENAME);
+							$fullname = $_FILES['art']['name'][$key];
+							$size = $_FILES['art']['size'][$key];
+							
+							// If there's no error during the track's upload
+							if(empty($error)) {
+								// Generate the file name & store it into a super global to check when multi upload
+								$mName = $GLOBALS['multiart'] = mt_rand().'_'.mt_rand().'_'.mt_rand().'.'.$this->db->real_escape_string($ext);
+							}
+							
+							// Delete the old image when editing the track
+							if(!$type) {
+								$query = $this->db->query(sprintf("SELECT `art` FROM `tracks` WHERE `id` = '%s'", $this->db->real_escape_string($_GET['id'])));
+								$result = $query->fetch_assoc();
+								deleteImages(array($result['art']), 2);
+							}
+							
+							// Send the image name in array format to the function
+							$values['art'] = $mName;
+							
+							$m_upload = true;
+						} elseif($_FILES['art']['name'][$key] == '') {
+							// If no file is selected
+							if($type) {
+								$values['art'] = 'default.png';
+							} else {
+								// If the cover artwork is not selected, unset the image so that it doesn't update the current one
+								unset($values['art']);
+							}
+						}
+						if(!empty($ext) && ($size > $maxsize || $size == 0)) {
+							// If the file size is higher than allowed or 0
+							$error[] = array(4, fsize($maxsize));
+						}
+						if(!empty($ext) && !$image['valid']) {
+							// If the file format is not allowed
+							$error[] = array(5, implode(', ', $allowedExt));
+						}
+					}
+				}
+			} else {
+				// Generate a new file name
+				$ext = strtolower(pathinfo($GLOBALS['multiart'], PATHINFO_EXTENSION));
+				$finalName = mt_rand().'_'.mt_rand().'_'.mt_rand().'.'.$this->db->real_escape_string($ext);
+				// Copy the previous track image
+				copy($mpath.$GLOBALS['multiart'], $mpath.$finalName);
+				// Store the new file name
+				$values['art'] = $finalName;
+			}
+		}
+		
+		if(!empty($error)) {
+			return array(0, $error);
+		} else {
+			if(isset($t_upload)) {
+				if($settings['as3']) {
+					global $s3;
+					try {
+						$s3->putObject(array(
+								'Bucket' => $settings['as3_bucket'],
+								'Key'	 => 'uploads/tracks/'.$tName,
+								'Body'	 => fopen($t_tmp_name, 'rb')
+						));
+						$values['as3_track'] = 1;
+					} catch(S3Exception $e) {
+						return array(0, $e);
+					}
+				} else {
+					$values['as3_track'] = 0;
+					// Move the file into the uploaded folder
+					move_uploaded_file($t_tmp_name, $tpath.$tName);
+				}
+			}
+			if(isset($m_upload)) {
+				// Move the file into the uploaded folder
+				move_uploaded_file($m_tmp_name, $mpath.$mName);
+			}
+			return array(1, $values);
+		}
+	}
+	function updateTrack($values, $type) {
+		// Type 0: For Edit Page
+		// Type 1: For Upload Page
+		$this->id = $values['id'];
+
+		global $LNG;
+
+		$x = 0;
+		foreach($values['title'] as $key => $val) {
+			// Validate the track
+			$validate = $this->validateTrack($values, $type, $key);
+			
+			// If there's an error
+			if(!$validate[0]) {
+				// Display the errors
+                $err = '';
+				foreach($validate[1] as $error) {
+					$err .= notificationBox('error', sprintf($LNG["{$error[0]}_upload_err"], ((isset($error[1])) ? $error[1] : ''), ((isset($error[2])) ? $error[2] : '')));
+				}
+				// Return the error (edit page)
+				if(!$type) {
+					return $err;
+				}
+			}
+			
+			// If the track is validated
+			if($validate[0]) {
+				// Prepare the values
+				foreach($validate[1] as $column => $value) {
+					// Set a date for the MySQL strict mode validation
+					if($column == 'release') {
+						$value = (empty($value) ? NULL : $value);
+					}
+					if($type) {
+						$columns[$column] = $this->db->real_escape_string($value);
+					} else {
+						if($column == 'release' && $value == NULL) {
+							$columns[] = sprintf("`%s` = NULL", $column);
+						} else {
+							$columns[] = sprintf("`%s` = '%s'", $column, $this->db->real_escape_string($value));
+						}
+					}
+				}
+				
+				$column_list = implode(',', $columns);
+
+				// echo '<pre>';
+				// var_dump($values); die;
+
+				$sql = "UPDATE `tracks` SET ";
+				if(isset($columns['title'])) $sql .= " `title` = '" . $columns['title'] . "',";
+				if(isset($columns['name'])) $sql .= " `name` = '" . $columns['name'] . "',";
+				if(isset($columns['size'])) $sql .= " `size` = '" . $columns['size'] . "',";
+				if(isset($columns['as3_track'])) $sql .= " `as3_track` = '" . $columns['as3_track'] . "',";
+				if(isset($columns['description'])) $sql .= " `description` = '" . $columns['description'] . "',";
+				if(isset($columns['tag'])) $sql .= " `tag` = '" . $columns['tag'] . "',";
+				if(isset($columns['buy'])) $sql .= " `buy` = '" . $columns['buy'] . "',";
+				if(isset($columns['record'])) $sql .= " `record` = '" . $columns['record'] . "',";
+				if(isset($columns['public'])) $sql .= " `public` = '" . $columns['public'] . "',";
+				if(isset($columns['download'])) $sql .= " `download` = '" . $columns['download'] . "',";
+				if(isset($columns['release'])) $sql .= " `release` = '" . $columns['release'] . "',";
+				if(isset($columns['art'])) $sql .= " `art` = '" . $columns['art'] . "',";
+				if(isset($columns['buy'])) $sql .= " `buy` = '" . $columns['buy'] . "',";
+				if(isset($columns['record'])) $sql .= " `record` = '" . $columns['record'] . "',";
+				if(isset($columns['public'])) $sql .= " `public` = " . $columns['public'] . ",";
+				if(isset($columns['download'])) $sql .= " `download` = " . $columns['download'] . ",";
+				if(isset($columns['download'])) $sql .= " `downloads` = " . $columns['download'] . "";
+
+				$sql .= " WHERE `id` = $this->id";
+
+				$stmt = $this->db->prepare(sprintf($sql, $column_list, $this->id, $this->db->real_escape_string($this->id)));
+				// Execute the statement
+				$stmt->execute();
+				// Save the affected rows
+				$affected = $stmt->affected_rows;
+				
+				// Close the statement
+				$stmt->close();
+				$x++;
+			}
+		}
+		
+		if($x && $type == 1) {
+			if(!empty(trim(nl2clean($values['playlist'])))) {
+				$this->managePlaylist(null, 2, $values['playlist'], $values['public']);
+
+				$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `by` = '%s' ORDER BY `id` DESC LIMIT 0, 1", $this->id));
+
+				$playlist = $query->fetch_assoc();
+
+				$pl = 1;
+			}
+		}
+		
+		if($x > 0) {
+			$query = $this->db->query(sprintf("SELECT * FROM `tracks` WHERE `id` = '%s' ORDER BY `id` DESC LIMIT 0, %s", $this->db->real_escape_string($this->id), $x));
+            $err = '';
+			if(isset($pl)) {
+				$err .= notificationBox('success', sprintf($LNG['playlist_created'], permalink($this->url.'/index.php?a=playlist&id='.$playlist['id'].'&name='.cleanUrl($playlist['name'])), $playlist['name']));
+			}
+			while($row = $query->fetch_assoc()) {
+				if(isset($pl)) {
+					$this->playlistEntry($row['id'], $playlist['id'], 3);
+				}
+				$err .= notificationBox('success', sprintf($LNG['track_uploaded'], permalink($this->url.'/index.php?a=track&id='.$row['id'].'&name='.cleanUrl($row['title'])), $row['title']));
+			}
+		}
+		return array($err, 1);
+	}
+	function deleteTrack($id){
+		$stmt = $this->db->prepare(sprintf("DELETE FROM `tracks` WHERE `id` = '%s'", $this->db->real_escape_string($id)));
+
+		// Execute the statement
+		$stmt->execute();
+		
+		// Save the affected rows
+		$affected = $stmt->affected_rows;
+
+		// Close the statement
+		$stmt->close();
+		
+		// If category was deleted
+		return ($affected) ? 1 : 0;
 	}
 
 }
@@ -4211,91 +4775,6 @@ class feed {
 		return '<div class="chat-error">'.$value.'</div>';
 	}
 	
-	function playlistEntry($track, $playlist, $type = null) {
-		// Type 0: Return whether the track exists in playlist or not
-		// Type 1: Return the playlist entries
-		// Type 2: Returns the latest added playlist
-		// Type 3: Add/Remove track from playlist
-		if($type) {
-			if($type == 1) {
-				$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `by` = '%s' ORDER BY `id` DESC", $this->id));
-			} elseif($type == 2) {
-				$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `by` = '%s' ORDER BY `id` DESC LIMIT 0, 1", $this->id));
-			} elseif($type == 3) {
-				// Verify if track exists
-				$query = $this->db->query(sprintf("SELECT * FROM `tracks`, `users` WHERE `id` = '%s' AND `tracks`.`uid` = `users`.`idu`", $this->db->real_escape_string($track)));
-				if($query->num_rows > 0) {
-					$result = $query->fetch_assoc();
-					
-					// Verify relationship
-					// Check privacy
-					switch($result['private']) {
-						case 0:
-							break;
-						case 1:
-							// Check if the username is not the same with the track owner
-							if($this->id !== $result['idu']) {
-								return false;
-							}
-						case 2:
-							$relationship = $this->verifyRelationship($this->id, $result['idu'], 0);
-							
-							// Check relationship
-							if(!$relationship) {
-								return false;
-							}
-							break;
-					}
-					
-					// Verify playlist ownership
-					$checkPlaylist = $this->db->query(sprintf("SELECT * FROM `playlists` WHERE `playlists`.`id` = '%s' AND `playlists`.`by` = '%s'", $this->db->real_escape_string($playlist), $this->db->real_escape_string($this->id)));
-					
-					if($checkPlaylist->num_rows > 0) {
-						
-						// Check if the track exists in playlist
-						$checkTrack = $this->db->query(sprintf("SELECT * FROM `playlists`, `playlistentries` WHERE `playlistentries`.`track` = '%s' AND `playlistentries`.`playlist` = '%s' AND `playlistentries`.`playlist` = `playlists`.`id`", $this->db->real_escape_string($track), $this->db->real_escape_string($playlist)));
-	
-						// If the track exist, delete it						
-						if($checkTrack->num_rows > 0) {
-							$this->db->query(sprintf("DELETE FROM `playlistentries` WHERE `track` = '%s' AND `playlist` = '%s'", $this->db->real_escape_string($track), $this->db->real_escape_string($playlist)));
-						}
-						// Insert the track into playlist
-						else {
-							$this->db->query(sprintf("INSERT INTO `playlistentries` (`playlist`, `track`) VALUES ('%s', '%s')", $this->db->real_escape_string($playlist), $this->db->real_escape_string($track)));
-						}
-						
-						// Return the playlist entry
-						$query = $this->db->query(sprintf("SELECT `id`,`name` FROM `playlists` WHERE `playlists`.`by` = '%s' AND `playlists`.`id` = '%s'", $this->id, $this->db->real_escape_string($playlist)));
-					} else {
-						return;
-					}
-				}
-			}
-
-			$output = '';
-			$rows = [];
-
-			// Store the array results
-			while($row = $query->fetch_assoc()) {
-				$rows[] = $row;
-			}
-			
-			foreach($rows as $row) {
-				$output .= '<div class="playlist-entry'.(($this->playlistEntry($track, $row['id'])) ? ' playlist-added' : '').'" id="playlist-entry'.$row['id'].'" onclick="addInPlaylist('.saniscape($track).','.$row['id'].')">'.$row['name'].'</div>';
-			}
-			
-			return $output;
-		} else {
-			// Select the playlists
-			$query = $this->db->query(sprintf("SELECT * FROM `playlistentries`,`playlists` WHERE `playlists`.`by` = '%s' AND `playlists`.`id` = '%s' AND `playlistentries`.`playlist` = '%s' AND `playlistentries`.`track` = '%s' AND `playlistentries`.`playlist` = `playlists`.`id`", $this->id, $playlist, $this->db->real_escape_string($playlist), $this->db->real_escape_string($track)));
-			
-			// Store the array results
-			if($query->num_rows > 0) {
-				return $query->num_rows;
-			}
-		}
-	}
-	
 	function managePlaylist($id, $type, $data = null, $public = 1) {
 		global $LNG;
 		// Type 0: Return the current playlist info
@@ -5931,7 +6410,7 @@ function validateFile($path, $name, $allowed, $type) {
 		// If the mime_content_type function exist and the mp3 file is valid
 		if(function_exists('mime_content_type')) {
 			// Read the mime type
-			$mime = mime_content_type($path);
+			$mime = $path ? mime_content_type($path) : '';
 			if($mime == 'audio/mpeg' || $mime == 'audio/mp4' || $mime == 'application/octet-stream' || $mime == 'audio/x-m4a' || $mime = 'audio/x-wav') {
 				$mime = 1;
 			} else {

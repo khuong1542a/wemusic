@@ -1038,6 +1038,84 @@ function startUpload(event) {
 	// Hide the upload button
 	$('#upload-button').hide();
 }
+function startUploadAdmin(event) {
+	// Prepare the request
+	var ajax = new XMLHttpRequest();
+	ajax.upload.addEventListener("progress", progressHandler, false);
+	ajax.addEventListener("load", completeHandler, false);
+	ajax.addEventListener("error", errorHandler, false);
+	ajax.addEventListener("abort", abortHandler, false);
+	ajax.open("POST", baseUrl+"/requests/post_track_admin.php");
+	window.location.reload();
+	// Client side form validation check
+	
+	// Validate the tags input
+	var tag_min = 0;
+	var tag_max = 0;
+	var upload_tags = $('input[name="category"]').val() + $('input[name="tag"]').val();
+	if(upload_tags == 0) {
+		tag_min = 1;
+	}
+	if(upload_tags.split(',').length > 30) {
+		tag_max = 1;
+	}
+	
+	// Validate the title inputs
+	var ttl_min = 0;
+	var ttl_max = 0;
+	var upload_titles = $('input[name="title[]"]');
+	for(var i = 0; i < upload_titles.length; i++) {
+		if(upload_titles[i].value.length < 1) {
+			var ttl_min = 1;
+		}
+		if(upload_titles[i].value.length > 99) {
+			var ttl_max = 1;
+		}
+	}
+	
+	// Validate the description input
+	var desc_err = 0;
+	if($('textarea[name="description"]').val().length > 5000) {
+		var desc_err = 1;
+	}
+	
+	// Validate the URL input
+	var buy_err = 0;
+	var buy_input = $('input[name="buy"]').val();
+	if(buy_input.length > 0 ) {
+		if(/^(http|https):\/\/[^ "]+$/.test(buy_input) == false) {
+			var buy_err = 1;
+		}
+	}
+	
+	if(tag_min || tag_max || ttl_min || ttl_max || desc_err || buy_err) {
+		// Do not reset the form
+		upload_form_reset = 0;
+		
+		// Send out the request
+		ajax.setRequestHeader("Content-type", "application/x-www-form-urlencoded");
+		ajax.send("error=1&tag_min="+tag_min+"&tag_max="+tag_max+"&ttl_min="+ttl_min+"&ttl_max="+ttl_max+"&desc="+desc_err+"&buy="+buy_err+"&token_id="+token_id);
+	} else {
+		// Reset the form
+		upload_form_reset = 1;
+		
+		// Get the upload form
+		var upload_form = $("#track-upload")[0];
+
+		// Create a new form data object
+		var formdata = new FormData(upload_form);
+
+		// Send out the request
+		ajax.send(formdata);
+	}
+	// Show the progress bar
+	$('#upload-pb').show();
+	$('#upload-processing').hide();
+	$('#upload-text').show();
+	
+	// Hide the upload button
+	$('#upload-button').hide();
+}
 function focus_form(id) {
 	document.getElementById('comment-form'+id).focus();
 	showButton(id);

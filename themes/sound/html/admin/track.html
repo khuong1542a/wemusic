@@ -3,6 +3,7 @@
 	<div id="upload-message">{$message}</div>
 	<form action="{$form_url}" enctype="multipart/form-data" method="post" id="track-upload" onsubmit="{$onclick}">
 		{$token_input}
+		<input type="hidden" name="id" id="id" value="{$id}">
 		<div class="track-info-container">
 			<div class="edit-menu">
 				<div class="edit-menu-item edit-menu-item-active" id="edit-general">{$lng->general_link}</div>

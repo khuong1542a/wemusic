@@ -5,28 +5,31 @@ if(!isset($_SESSION['token_id'])) {
     return false;
 }
 
+global $TMPL, $LNG, $CONF, $db, $settings;
 
+$manageTracks = new manageTracks();
 
-$feed = new feed();
-$feed->db = $db;
-$feed->url = $CONF['url'];
-// $feed->id = $user['idu'];
-$feed->username = $user['adminUsername'] ?? $_SESSION['adminUsername'];
-$feed->per_page = $settings['perpage'];
-$feed->art_size = $settings['artsize'];
-$feed->art_format = $settings['artformat'];
-$feed->track_size_total = $settings['tracksizetotal'] ?? '';
-$feed->track_size = $settings['tracksize'] ?? '';
-$feed->track_format = $settings['trackformat'];
-$feed->time = $settings['time'];
+$manageTracks->db = $db;
+$manageTracks->per_page = $settings['rperpage'];
+
+$users = $manageTracks->getUserAdmin(0);
+
+$manageTracks->id = $_REQUEST['id'];
+$manageTracks->url = $CONF['url'];
+$manageTracks->user = $users[0];
+$manageTracks->user_id = $users[0]['id'];
+$manageTracks->username = $users[0]['username'] ?? $_SESSION['adminUsername'];
+$manageTracks->per_page = $settings['perpage'];
+$manageTracks->art_size = $settings['artsize'];
+$manageTracks->art_format = $settings['artformat'];
+$manageTracks->track_size_total = $settings['tracksizetotal'] ?? '';
+$manageTracks->track_size = $settings['tracksize'] ?? '';
+$manageTracks->track_format = $settings['trackformat'];
+$manageTracks->time = $settings['time'];
 	
-$update = $feed->updateTrack($_POST, 1);
+$update = $manageTracks->updateTrack($_POST, 1);
+
+echo json_encode(array("result" => (strpos($update[0], 'notification-box-error') > 0 ? 0 : 1), "message" => $update[0]));
 
 mysqli_close($db);
-
-$TMPL['message'] = 12312;
-
-$skin = new skin('admin/track');
-
-return $skin->make();
 ?>

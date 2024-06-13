@@ -1,6 +1,6 @@
 <?php
 function PageMain() {
-	global $TMPL, $LNG, $CONF, $db, $settings;
+	global $TMPL, $LNG, $CONF, $db, $settings, $user;
 	require_once('./includes/countries.php');
 
     $admin_pages = ['site_settings', 'pro', 'themes', 'languages', 'stats', 'users', 'track', 'categories', 'ads', 'info_pages', 'newsletter', 'security'];
@@ -242,12 +242,16 @@ function PageMain() {
 				$skin = new skin('admin/track'); $page = '';
 				
 				$TMPL['form_url'] = $CONF['url'].'/requests/post_track_admin.php';
+				$TMPL['onclick'] = 'startUploadAdmin(); return false;';
 				
 				$TMPL['categories'] = '';
 				foreach ($manageTracks->getCategories() as $category) {
 					$TMPL['categories'] .= '<option value="'.$category.'">'.$category.'</option>';
 				}
 				$TMPL['btntext'] = $LNG['save'];
+			}elseif(isset($_GET['delete'])){
+				$manageTracks->deleteTrack($_GET['delete']);
+				header("Location: ".$CONF['url']."/index.php?a=admin&b=track");
 			}else if(!isset($_GET['id']) && !isset($_GET['idu'])) {
 				$skin = new skin('admin/manage_track'); $page = '';
 
@@ -258,13 +262,39 @@ function PageMain() {
 				$skin = new skin('admin/track'); $page = '';
 				
 				$TMPL['form_url'] = $CONF['url'].'/requests/post_track_admin.php';
+				$TMPL['onclick'] = 'startUploadAdmin(); return false;';
+				$TMPL['btntext'] = $LNG['save'];
+				$getTrack = $manageTracks->gettracksign($_GET['id'] ?? null, $_GET['idu'] ?? null);
+
+				$arTag = explode(',', trim($getTrack['tag'], ','));
 				
 				$TMPL['categories'] = '';
 				foreach ($manageTracks->getCategories() as $category) {
-					$TMPL['categories'] .= '<option value="'.$category.'">'.$category.'</option>';
+					$selected = '';
+					if(isset($arTag[0]) && $category == ucfirst($arTag[0])){
+						$selected = ' selected';
+					}
+					$TMPL['categories'] .= '<option value="'.$category.'" ' . $selected . '>'.$category.'</option>';
 				}
-				$getUser = $manageTracks->gettracksign($_GET['id'] ?? null, $_GET['idu'] ?? null);
-				if(!$getUser) {
+
+				// echo '<pre>';
+				// var_dump($getTrack); die;
+
+				$TMPL['id'] = $_GET['id'];
+				$TMPL['description'] = $getTrack['description'] ?? '';
+				$TMPL['title'] = $getTrack['title'] ?? '';
+				$TMPL['tag'] = $arTag[1] ?? $arTag[0];
+				$TMPL['buy'] = $getTrack['buy'] ?? '';
+				$TMPL['record'] = $getTrack['record'] ?? '';
+				$TMPL['years'] = generateDateForm(0, (date('Y', strtotime($getTrack['time'] ?? ''))));
+				$TMPL['months'] = generateDateForm(1, (date('m', strtotime($getTrack['time'] ?? ''))));
+				$TMPL['days'] = generateDateForm(2, (date('d', strtotime($getTrack['time'] ?? ''))));
+				$TMPL['poff'] = $getTrack['public'] == 0 ? ' selected' : '';
+				$TMPL['pon'] = $getTrack['public'] == 1 ? ' selected' : '';
+				$TMPL['doff'] = $getTrack['download'] == 0 ? ' selected' : '';
+				$TMPL['don'] = $getTrack['download'] == 1 ? ' selected' : '';
+
+				if(!$getTrack) {
 					header("Location: ".$CONF['url']."/index.php?a=admin&b=track&m=un");
 				}
 			}
